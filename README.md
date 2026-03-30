@@ -1,11 +1,11 @@
 # CCR-COD v1 (COCO_V1)
 
-PyTorch 기반의 **Camouflaged Object Detection (COD)** 실험 코드입니다.  
-이 저장소는 **ResNet50 backbone + simple FPN + dual-branch reasoning (Branch A / Branch B) + gated fusion + refinement decoder** 구조를 중심으로, 학습·평가·시각화·ablation 실험까지 한 번에 재현할 수 있도록 구성되어 있습니다.
+This repository contains a **PyTorch-based Camouflaged Object Detection (COD)** experimental codebase.  
+It is organized around a **ResNet50 backbone + simple FPN + dual-branch reasoning (Branch A / Branch B) + gated fusion + refinement decoder** architecture, so that training, evaluation, visualization, and ablation experiments can all be reproduced within a single codebase.
 
-## 프로젝트 개요
+## Project Overview
 
-이 프로젝트는 COD를 다음과 같은 역할 분리로 다룹니다.
+This project approaches COD by separating responsibilities as follows.
 
 ### Branch A: global / objectness branch
 - coarse semantic localization
@@ -23,62 +23,62 @@ PyTorch 기반의 **Camouflaged Object Detection (COD)** 실험 코드입니다.
 - boundary refinement
 
 ### Fusion and final decoding
-- Branch A와 Branch B feature를 gating 기반으로 결합
-- refinement decoder를 통해 최종 camouflage mask 예측
+- combines Branch A and Branch B features through gating-based fusion
+- predicts the final camouflage mask through a refinement decoder
 
-## 이 저장소에서 바로 할 수 있는 것
+## What You Can Do Directly in This Repository
 
-- 학습용 split 생성
-- 모델 구조 sanity check
-- dev 학습 및 평가
-- full-train 실험
-- **A-only baseline** 실행
-- **Branch A signal ablation** 실행
+- generate training splits
+- run a model structure sanity check
+- run dev training and evaluation
+- run full-train experiments
+- run the **A-only baseline**
+- run **Branch A signal ablations**
   - `objectness_map`
   - `uncertainty_map`
   - `boundary_prior`
-- 샘플 단위 prediction / branch visualization 저장
+- save sample-level predictions and branch visualizations
 
-## 현재 릴리스 범위
+## Current Release Scope
 
-이 README는 **현재 포함된 코드 기준**으로 작성되었습니다.
+This README is written **based on the code currently included in the repository**.
 
-- 메인 실험 흐름은 **A+B base model** 및 **Branch A signal ablation**에 맞춰 정리되어 있습니다.
-- config 안에 `GT_Edge`, `GT_Instance` 관련 경로가 존재할 수 있지만, 현재 릴리스의 기본 학습 흐름은 **image + mask 중심**으로 동작합니다.
-- boundary target은 기본적으로 mask에서 내부적으로 생성되는 형태를 사용합니다.
-- affinity / topology 관련 훅은 코드 구조에 포함되어 있으나, 기본 공개 설정에서는 핵심 활성 실험 축이 아닙니다.
+- The main experimental flow is organized around the **A+B base model** and **Branch A signal ablations**.
+- Although config files may contain paths related to `GT_Edge` and `GT_Instance`, the default training flow in the current release mainly operates on **image + mask** inputs.
+- Boundary targets are basically generated internally from the mask.
+- Hooks for affinity / topology are included in the code structure, but they are not the primary active experimental axes in the default public setup.
 
-즉, 이 저장소는 **v1 실험 코드**로 이해하는 것이 가장 정확합니다.
+In other words, the most accurate way to understand this repository is as a **v1 experimental codebase**.
 
-## 저장소 구조
+## Repository Structure
 
 ```text
 .
-├── configs/                 # 실험 설정 YAML
+├── configs/                 # experiment setting YAML files
 ├── data/
-│   └── splits/              # prepare-splits 결과
-├── datasets/                # dataset / transforms / target 생성
+│   └── splits/              # outputs from prepare-splits
+├── datasets/                # dataset / transforms / target generation
 ├── engine/                  # trainer / evaluator
 ├── losses/                  # segmentation / boundary / auxiliary losses
-├── metrics/                 # COD metric 계산
+├── metrics/                 # COD metric computation
 ├── models/
 │   ├── backbones/           # ResNet50 backbone
 │   ├── necks/               # simple FPN neck
 │   ├── branches/            # Branch A / Branch B
 │   ├── fusion/              # gated / identity fusion
 │   ├── decoders/            # refinement decoder
-│   └── cod_model.py         # 전체 조립 모델
-├── scripts/                 # 반복 실험용 PowerShell 스크립트
-├── tools/                   # 환경 점검 / 결과 수집
-├── utils/                   # config / visualization / 공통 유틸
-├── Results/                 # 학습 결과 저장 위치
-├── main.py                  # 진입점
+│   └── cod_model.py         # full assembled model
+├── scripts/                 # PowerShell scripts for repeated experiments
+├── tools/                   # environment checks / result collection
+├── utils/                   # config / visualization / common utilities
+├── Results/                 # output directory for training results
+├── main.py                  # entry point
 └── README.md
 ```
 
-## 실행 엔트리포인트
+## Execution Entry Points
 
-`main.py`는 아래 네 가지 커맨드를 제공합니다.
+`main.py` provides the following four commands.
 
 ```bash
 python main.py prepare-splits
@@ -87,19 +87,19 @@ python main.py train
 python main.py eval
 ```
 
-## 데이터셋 설정
+## Dataset Setup
 
-기본 설정 파일은 Windows 환경 예시 경로를 사용합니다.  
-실행 전에 **반드시 각 YAML의 dataset / results 경로를 자신의 환경에 맞게 수정**해야 합니다.
+The default config files use example paths for a Windows environment.  
+Before running anything, you **must modify the dataset / results paths in each YAML file to match your own environment**.
 
-기본적으로 다음 데이터셋을 가정합니다.
+The repository assumes the following datasets by default:
 
 - COD10K
 - CAMO
 - CHAMELEON
 - NC4K
 
-예시 설정 위치:
+Example config section:
 
 ```yaml
 paths:
@@ -123,11 +123,11 @@ paths:
     root: ...
 ```
 
-split 파일은 `prepare-splits` 실행 후 `data/splits/` 아래에 생성됩니다.
+Split files are generated under `data/splits/` after running `prepare-splits`.
 
-## 설치
+## Installation
 
-먼저 가상환경을 만들고 활성화합니다.
+First, create and activate a virtual environment.
 
 ```powershell
 python -m venv .venv
@@ -135,47 +135,47 @@ python -m venv .venv
 python -m pip install --upgrade pip
 ```
 
-PyTorch는 사용 중인 CUDA / OS 환경에 맞게 별도로 설치한 뒤, 나머지 의존성을 설치합니다.
+Install PyTorch separately according to your CUDA / OS environment, then install the remaining dependencies.
 
 ```powershell
 pip install -r requirements.txt
 ```
 
-환경 점검:
+Environment check:
 
 ```powershell
 python .\tools\check_env.py
 ```
 
-## 빠른 시작
+## Quick Start
 
-### 1) split 생성
+### 1) Generate splits
 
 ```powershell
 python .\main.py prepare-splits --config .\configs\model_v1_resnet50.yaml
 ```
 
-### 2) 모델 sanity check
+### 2) Model sanity check
 
 ```powershell
 python .\main.py sanity-model --config .\configs\model_v1_resnet50_debug_ab_noamp.yaml
 ```
 
-### 3) dev 학습
+### 3) Dev training
 
 ```powershell
 python .\main.py train --config .\configs\model_v1_resnet50_debug_ab_noamp.yaml --run-name debug_ab_noamp --skip-prepare
 ```
 
-### 4) dev 평가
+### 4) Dev evaluation
 
-`best_salpha.pth`가 생성된 경우 해당 checkpoint를 우선 사용할 수 있고, 그렇지 않으면 `last.pth`를 평가하면 됩니다.
+If `best_salpha.pth` has been created, you can use that checkpoint first. Otherwise, evaluate `last.pth`.
 
 ```powershell
 python .\main.py eval --config .\configs\model_v1_resnet50_debug_ab_noamp.yaml --run-name debug_ab_noamp_eval --checkpoint .\Results\checkpoints\debug_ab_noamp\last.pth --skip-prepare
 ```
 
-## 주요 실험
+## Main Experiments
 
 ### Base full-train
 
@@ -214,13 +214,13 @@ python .\main.py train --config .\configs\model_v1_resnet50_fulltrain_ablate_bou
 python .\main.py eval --config .\configs\model_v1_resnet50_fulltrain_ablate_boundary_prior.yaml --run-name ablate_boundaryprior_eval --checkpoint .\Results\checkpoints\ablate_boundaryprior\last.pth --skip-prepare
 ```
 
-### 반복 실험 스크립트
+### Repeated experiment script
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\run_fulltrain_ablation_sequence.ps1
 ```
 
-## 결과 저장 위치
+## Result Output Locations
 
 ```text
 Results/
@@ -232,12 +232,12 @@ Results/
 └── debug/<run_name>/
 ```
 
-## 시각화 산출물
+## Visualization Outputs
 
-`eval`을 실행하면 sample별 branch visualization이 저장됩니다.
+When `eval` is executed, branch visualizations for each sample are saved.
 
 <details>
-<summary>생성되는 주요 시각화 파일 보기</summary>
+<summary>View the main generated visualization files</summary>
 
 ```text
 Results/vis/<run_name>/<dataset>/<sample_id>/
@@ -269,24 +269,24 @@ Results/vis/<run_name>/<dataset>/<sample_id>/
 
 </details>
 
-이 구조를 통해 다음을 함께 확인할 수 있습니다.
+This structure allows you to inspect the following together:
 
-- Branch A signal head가 실제로 반응하는지
-- 해당 signal이 downstream에서 실제로 사용되는지
-- Branch B와 fusion이 어디에서 기여하는지
+- whether Branch A signal heads are actually responding
+- whether those signals are truly being used downstream
+- where Branch B and fusion are contributing
 
-## 로그 해석
+## Log Interpretation
 
-### dev split 사용 시
-- `train_log.csv`에 train loss와 validation metric이 함께 기록됩니다.
+### When using a dev split
+- `train_log.csv` records both training loss and validation metrics.
 
-### full-train 사용 시
-- `val_split: null`이면 epoch별 validation metric은 기록되지 않고 train loss 중심으로 저장됩니다.
-- 최종 metric 비교는 학습 후 `eval` 단계에서 수행하는 것이 일반적입니다.
+### When using full-train
+- if `val_split: null`, validation metrics are not recorded per epoch, and logs are saved mainly around training loss
+- final metric comparison is generally performed in the `eval` stage after training
 
-## 권장 비교 순서
+## Recommended Comparison Order
 
-아래 순서로 비교하면 해석이 깔끔합니다.
+The cleanest interpretation comes from comparing runs in the following order:
 
 1. `fulltrain_a_only`
 2. `fulltrain_base_v1`
@@ -294,23 +294,24 @@ Results/vis/<run_name>/<dataset>/<sample_id>/
 4. `ablate_uncertainty`
 5. `ablate_boundaryprior`
 
-이렇게 하면 다음을 분리해서 볼 수 있습니다.
+This lets you separate:
 
-- Branch B 전체 기여
-- Branch A signal별 기여
+- the overall contribution of Branch B
+- the contribution of each Branch A signal
 
-## 결과 집계
+## Result Aggregation
 
-평가가 끝난 뒤 metric CSV를 하나로 모을 수 있습니다.
+After evaluation is finished, you can collect the metric CSV files into one summary file.
 
 ```powershell
 python .\tools\collect_ablation_results.py --metrics-root .\Results\metrics --output-csv .\Results\ablation_summary.csv
 ```
 
-## 주의사항
+## Notes
 
-- `loss_affinity`, `loss_topology`가 0이라고 해서 Branch B 전체가 비활성화된 것은 아닙니다. 해당 loss가 현재 설정에서 비활성화된 것일 수 있습니다.
-- `eval` 시 저장되는 heatmap은 시각화 목적이며, 샘플별 정규화 결과로 해석하는 것이 안전합니다.
+- Even if `loss_affinity` and `loss_topology` are 0, that does **not** mean Branch B is entirely inactive. It may simply mean those specific losses are disabled in the current configuration.
+- The heatmaps saved during `eval` are intended for visualization purposes. It is safest to interpret them as sample-wise normalized outputs.
+
 ---
 
-이 저장소는 **COD 구조 실험용 v1 코드베이스**이며, 특히 **A+B base pipeline과 Branch A signal ablation 분석**에 초점을 둡니다.
+This repository is a **v1 codebase for COD architecture experiments**, with a particular focus on the **A+B base pipeline and Branch A signal ablation analysis**.
