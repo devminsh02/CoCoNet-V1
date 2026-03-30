@@ -1,0 +1,148 @@
+project:
+  name: CCR-COD-ResNet50-FullTrain-FullOption-NoBoundaryPrior
+  root: 'E:\COD\COCO_V1'
+  seed: 3407
+
+paths:
+  datasets:
+    cod10k:
+      train_image_root: 'E:\COD\Datasets\COD10K-v3\Train\Image'
+      train_mask_root: 'E:\COD\Datasets\COD10K-v3\Train\GT_Object'
+      train_edge_root: 'E:\COD\Datasets\COD10K-v3\Train\GT_Edge'
+      train_instance_root: 'E:\COD\Datasets\COD10K-v3\Train\GT_Instance'
+      test_image_root: 'E:\COD\Datasets\COD10K-v3\Test\Image'
+      test_mask_root: 'E:\COD\Datasets\COD10K-v3\Test\GT_Object'
+      test_edge_root: 'E:\COD\Datasets\COD10K-v3\Test\GT_Edge'
+      test_instance_root: 'E:\COD\Datasets\COD10K-v3\Test\GT_Instance'
+    camo:
+      train_image_root: 'E:\COD\Datasets\CAMO-V.1.0-CVIU2019\Images\Train'
+      test_image_root: 'E:\COD\Datasets\CAMO-V.1.0-CVIU2019\Images\Test'
+      mask_root: 'E:\COD\Datasets\CAMO-V.1.0-CVIU2019\GT'
+    chameleon:
+      image_root: 'E:\COD\Datasets\CHAMELEON\Imgs'
+      mask_root: 'E:\COD\Datasets\CHAMELEON\GT'
+      edge_root: 'E:\COD\Datasets\CHAMELEON\Edge'
+    nc4k:
+      image_root: 'E:\COD\Datasets\NC4K\Imgs'
+      mask_root: 'E:\COD\Datasets\NC4K\GT'
+      instance_root: 'E:\COD\Datasets\NC4K\Instance'
+    splits_root: 'E:\COD\COCO_V1\data\splits'
+  results:
+    root: 'E:\COD\COCO_V1\Results'
+    checkpoints: 'E:\COD\COCO_V1\Results\checkpoints'
+    logs: 'E:\COD\COCO_V1\Results\logs'
+    metrics: 'E:\COD\COCO_V1\Results\metrics'
+    vis: 'E:\COD\COCO_V1\Results\vis'
+    predictions: 'E:\COD\COCO_V1\Results\predictions'
+    debug: 'E:\COD\COCO_V1\Results\debug'
+
+model:
+  backbone:
+    name: resnet50
+    pretrained: true
+    freeze_stages: 0
+  neck:
+    name: simple_fpn
+    out_channels: 256
+  branch_a:
+    channels: 256
+  branch_a_signal_switches:
+    objectness_map: true
+    uncertainty_map: true
+    boundary_prior: false
+  branch_b:
+    enabled: true
+    channels: 256
+    roi:
+      hidden_channels: 64
+    tokenizer:
+      grid_size: 16
+      valid_threshold: 0.05
+    graph:
+      hidden_channels: 256
+      k_neighbors: 8
+      num_layers: 2
+    affinity:
+      enabled: true
+  fusion:
+    name: gated_fusion
+    channels: 256
+  decoder:
+    channels: 256
+
+targets:
+  boundary_width: 3
+
+data:
+  dev_ratio: 0.10
+  num_workers: 0
+  pin_memory: true
+  train_split: train_concat
+  val_split: null
+  test_splits:
+    cod10k_test: cod10k_test
+    camo_test: camo_test
+    chameleon_test: chameleon_test
+    nc4k_test: nc4k_test
+
+train:
+  input_size: 352
+  test_size: 352
+  batch_size: 1
+  accumulation_steps: 4
+  epochs: 50
+  warmup_epochs: 5
+  amp: false
+  freeze_backbone_bn: true
+  freeze_all_bn: false
+  freeze_bn_affine: false
+  backbone_lr_mult: 0.1
+  grad_clip_norm: 1.0
+  optimizer:
+    name: adamw
+    lr: 8.0e-5
+    weight_decay: 1.0e-4
+  scheduler:
+    name: cosine
+  augment:
+    hflip: true
+    random_rescale: true
+    random_crop: true
+    color_jitter: false
+
+loss:
+  seg:
+    enabled: true
+    bce_weight: 1.0
+    iou_weight: 1.0
+  aux_seg:
+    enabled: true
+    coarse_weight: 0.35
+    fine_weight: 0.35
+    objectness_weight: 0.15
+    boundary_prior_weight: 0.10
+  boundary:
+    enabled: true
+    weight: 1.0
+    candidate_weight: 0.3
+  affinity:
+    enabled: true
+    weight: 0.20
+    line_samples: 7
+    boundary_pool_kernel: 7
+    target_threshold: 0.08
+    pos_weight: 2.0
+    regression_weight: 0.25
+  topology:
+    enabled: true
+    weight: 0.20
+    band_kernel: 7
+    consistency_weight: 0.35
+
+eval:
+  input_size: 352
+  save_vis_per_dataset: 20
+  save_branch_summary_board: true
+  save_feature_maps: true
+  feature_reduce: mean_abs
+  vis_long_side: 1280

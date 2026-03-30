@@ -1,0 +1,9 @@
+PyYAML>=6.0
+numpy>=1.26
+Pillow>=10.0
+opencv-python>=4.9
+tqdm>=4.66
+tensorboard>=2.16
+matplotlib>=3.8
+scikit-image>=0.22
+pysodmetrics>=1.5.1

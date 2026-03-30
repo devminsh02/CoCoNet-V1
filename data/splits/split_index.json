@@ -1,0 +1,11 @@
+{
+  "cod10k_train": "cod10k_train_cam_3040.txt",
+  "cod10k_test": "cod10k_test_cam_2026.txt",
+  "camo_train": "camo_train_1000.txt",
+  "camo_test": "camo_test_250.txt",
+  "chameleon_test": "chameleon_test_76.txt",
+  "nc4k_test": "nc4k_test_4121.txt",
+  "train_concat": "cod_train_concat_4040.txt",
+  "train_main": "cod_train_concat_main_3636.txt",
+  "train_dev": "cod_train_concat_dev_404.txt"
+}

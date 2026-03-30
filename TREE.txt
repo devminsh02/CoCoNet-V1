@@ -1,0 +1,94 @@
+README.md
+REPLACE_GUIDE.txt
+Results/
+    checkpoints/
+    debug/
+    logs/
+    metrics/
+    predictions/
+    vis/
+configs/
+    model_v1_resnet50.yaml
+    model_v1_resnet50_debug_ab_noamp.yaml
+    model_v1_resnet50_fulltrain_a_only.yaml
+    model_v1_resnet50_fulltrain_ablate_boundary_prior.yaml
+    model_v1_resnet50_fulltrain_ablate_objectness_map.yaml
+    model_v1_resnet50_fulltrain_ablate_uncertainty_map.yaml
+    model_v1_resnet50_fulltrain_base.yaml
+data/
+    splits/
+        README.md
+datasets/
+    __init__.py
+    builders.py
+    cod_eval_dataset.py
+    cod_train_dataset.py
+    common.py
+    target_builder.py
+    transforms.py
+engine/
+    __init__.py
+    evaluator.py
+    trainer.py
+losses/
+    __init__.py
+    affinity_loss.py
+    aux_seg_loss.py
+    boundary_loss.py
+    loss_manager.py
+    seg_loss.py
+    topology_loss.py
+main.py
+metrics/
+    __init__.py
+    basic_cod_metrics.py
+models/
+    __init__.py
+    backbones/
+        __init__.py
+        resnet50_backbone.py
+    branches/
+        __init__.py
+        branch_a/
+            __init__.py
+            boundary_prior_head.py
+            coarse_head.py
+            fine_head.py
+            global_objectness_branch.py
+        branch_b/
+            __init__.py
+            affinity_head.py
+            boundary_candidate_head.py
+            closure_head.py
+            contour_closure_branch.py
+            fragment_tokenizer.py
+            graph_reasoner.py
+            null_branch_b.py
+            roi_gating.py
+    cod_model.py
+    decoders/
+        __init__.py
+        refinement_decoder.py
+    fusion/
+        __init__.py
+        gated_fusion.py
+        identity_fusion.py
+    necks/
+        __init__.py
+        simple_fpn_neck.py
+requirements.txt
+run_eval.bat
+run_prepare_splits.bat
+run_sanity.bat
+run_train.bat
+scripts/
+    run_fulltrain_ablation_sequence.ps1
+tools/
+    __init__.py
+    check_env.py
+    collect_ablation_results.py
+utils/
+    __init__.py
+    common.py
+    config.py
+    visualization.py

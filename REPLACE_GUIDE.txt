@@ -1,0 +1,11 @@
+This archive is a full project package.
+Recommended path on Windows:
+  E:\COD\COCO_V1
+
+After extracting, verify:
+  E:\COD\COCO_V1\main.py
+  E:\COD\COCO_V1\configs\model_v1_resnet50_debug_ab_noamp.yaml
+
+Then run:
+  python .\main.py prepare-splits --config .\configs\model_v1_resnet50.yaml
+  python .\main.py sanity-model --config .\configs\model_v1_resnet50_debug_ab_noamp.yaml
