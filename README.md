@@ -314,16 +314,6 @@ python .\tools\collect_ablation_results.py --metrics-root .\Results\metrics --ou
 - Windows 경로와 PowerShell / `.bat` 스크립트를 기준으로 작성되어 있으므로, Linux 환경에서는 경로와 실행 스크립트를 적절히 바꿔야 합니다.
 - 공개용 정리 단계에서는 config naming, dependency hygiene, 실험 naming consistency를 한 번 더 정리하는 것을 권장합니다.
 
-## 체크리스트
-
-GitHub에 올리기 전에 최소한 아래 항목은 확인하는 편이 안전합니다.
-
-- [ ] 각 YAML의 dataset / results 경로가 현재 환경과 일치하는가
-- [ ] `prepare-splits`가 정상적으로 split txt를 생성했는가
-- [ ] `tools/check_env.py`가 통과하는가
-- [ ] `sanity-model`이 shape mismatch 없이 끝나는가
-- [ ] `Results/` 하위에 checkpoint / logs / metrics / vis가 정상 생성되는가
-
 ---
 
 이 저장소는 **COD 구조 실험용 v1 코드베이스**이며, 특히 **A+B base pipeline과 Branch A signal ablation 분석**에 초점을 둡니다.
