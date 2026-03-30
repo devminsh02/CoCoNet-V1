@@ -311,9 +311,6 @@ python .\tools\collect_ablation_results.py --metrics-root .\Results\metrics --ou
 
 - `loss_affinity`, `loss_topology`가 0이라고 해서 Branch B 전체가 비활성화된 것은 아닙니다. 해당 loss가 현재 설정에서 비활성화된 것일 수 있습니다.
 - `eval` 시 저장되는 heatmap은 시각화 목적이며, 샘플별 정규화 결과로 해석하는 것이 안전합니다.
-- Windows 경로와 PowerShell / `.bat` 스크립트를 기준으로 작성되어 있으므로, Linux 환경에서는 경로와 실행 스크립트를 적절히 바꿔야 합니다.
-- 공개용 정리 단계에서는 config naming, dependency hygiene, 실험 naming consistency를 한 번 더 정리하는 것을 권장합니다.
-
 ---
 
 이 저장소는 **COD 구조 실험용 v1 코드베이스**이며, 특히 **A+B base pipeline과 Branch A signal ablation 분석**에 초점을 둡니다.
