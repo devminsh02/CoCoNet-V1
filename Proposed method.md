@@ -1,8 +1,23 @@
-# Branch A / Branch B 동작 원리 정리
+# Branch A / Branch B 동작 원리 정리 (개정본)
 
 ## 코드 기준 수식화 + 역할 + Tensor 흐름 + Ablation 의미
 
 이 문서는 현재 `COCO_V1` 코드 구조를 기준으로, `Branch A`와 `Branch B`가 무엇을 입력받고, 어떤 중간 표현을 만들고, 어떻게 최종 출력으로 이어지는지를 **실제 모듈 이름과 실제 연산 순서** 기준으로 다시 정리한 것이다.
+
+이번 개정본은 기존 설명에 더해, 중간에 헷갈리기 쉬웠던 아래 항목도 본문 안에 직접 풀어서 넣었다.
+
+- `lateral projection`이 정확히 무엇인지
+- `smoothing block`이 무엇을 하는지
+- FPN 식 `p5, p4, p3, p2`가 정확히 무슨 뜻인지
+- 왜 `p1`은 없는지
+- `pyramid_fuse`가 정확히 무엇인지
+- 왜 `ConvBNReLU(1024 → 256)`이 되는지
+- 여기서 `1024`가 정확히 무엇의 차원인지
+- `b = σ(z_bp)`를 왜 구하는지
+- `uncertainty`는 무엇이고 왜 필요한지
+- `sigmoid_entropy_from_logits`가 정확히 무엇을 하는지
+- entropy 식 안의 `p`가 무엇인지
+- `α_o, α_u, α_b ∈ {0,1}`가 정확히 어떤 의미인지
 
 중요한 원칙은 다음과 같다.
 
@@ -34,7 +49,7 @@ f_{\mathrm{fused}}
 z_{\mathrm{final}}
 ```
 
-각 기호는 다음 의미를 가진다.
+각 기호의 의미는 다음과 같다.
 
 - `x`: 입력 이미지
 - `p2, p3, p4, p5`: FPN multi-scale feature
@@ -111,19 +126,35 @@ W_2(\mathrm{Dropout}(\mathrm{ReLU}(W_1 x)))
 
 현재 uncertainty map은 별도 head가 아니라 `utils/common.py`의 `sigmoid_entropy_from_logits(logits)`로 계산된다.
 
+먼저 logits를 확률로 바꾼다.
+
 ```math
 p = \sigma(z)
 ```
 
+여기서 `p`는 **각 픽셀이 foreground일 확률**이다.  
+즉 각 위치 `(i,j)`에 대해 `p_{i,j}`는 “이 픽셀이 물체일 확률”이라는 뜻이다.
+
+그 다음 수치 안정성을 위해 `clip`을 적용한다.
+
 ```math
 \bar p = \mathrm{clip}(p, \epsilon, 1-\epsilon)
 ```
+
+그 다음 binary entropy를 계산한다.
 
 ```math
 u = -\big(\bar p\log \bar p + (1-\bar p)\log(1-\bar p)\big)
 ```
 
 즉 uncertainty는 **fine logits에서 유도된 entropy map**이다.
+
+이 식의 의미는 단순하다.
+
+- `p ≈ 0` 또는 `p ≈ 1`이면: 모델이 확신하고 있으므로 entropy가 작다.
+- `p ≈ 0.5`이면: foreground/background가 애매하므로 entropy가 크다.
+
+따라서 `sigmoid_entropy_from_logits`는 **segmentation logits를 uncertainty signal로 바꾸는 함수**다.
 
 ---
 
@@ -165,19 +196,45 @@ shape는 다음처럼 본다.
 
 현재 neck은 `models/necks/simple_fpn_neck.py`의 `SimpleFPNNeck`이다.
 
-실제 구성:
+실제 구성은 크게 두 부분이다.
 
-### lateral projection
+### (A) lateral projection
+
 - `lateral_c2 = Conv2d(256 → 256, kernel=1)`
 - `lateral_c3 = Conv2d(512 → 256, kernel=1)`
 - `lateral_c4 = Conv2d(1024 → 256, kernel=1)`
 - `lateral_c5 = Conv2d(2048 → 256, kernel=1)`
 
-### smoothing block
+여기서 `lateral projection`이라는 말은, **backbone에서 옆으로 들어오는 feature를 FPN이 다루기 쉬운 공통 채널 수로 맞추는 1×1 conv**를 뜻한다.
+
+왜 필요한가?
+
+- backbone 출력 채널 수는 서로 다르다.
+- FPN에서는 서로 다른 level feature를 더해야 한다.
+- 채널 수가 다르면 element-wise sum이 불가능하다.
+
+따라서 `c2, c3, c4, c5`를 각각 256채널로 맞춘다.
+
+즉 lateral projection은 “정보를 대충 버리는 것”이라기보다, **FPN top-down fusion을 위해 표현 공간을 정렬하는 단계**다.
+
+### (B) smoothing block
+
 - `smooth_p2 = ConvBNReLU(256 → 256, kernel=3)`
 - `smooth_p3 = ConvBNReLU(256 → 256, kernel=3)`
 - `smooth_p4 = ConvBNReLU(256 → 256, kernel=3)`
 - `smooth_p5 = ConvBNReLU(256 → 256, kernel=3)`
+
+여기서 `smoothing block`은 **합쳐진 feature를 3×3 conv로 정리하는 블록**이다.
+
+왜 필요한가?
+
+- top-down에서 내려온 feature와 lateral feature를 그냥 더하면 분포와 의미 수준이 다르다.
+- 그 결과 합쳐진 feature는 다소 거칠고 noisy할 수 있다.
+- 3×3 conv는 주변 spatial context를 보며 이 합쳐진 feature를 정리해 준다.
+
+즉 smoothing block은 “후처리”가 아니라, **multi-scale fusion 결과를 usable feature로 안정화하는 단계**다.
+
+## 2.3 FPN 실제 계산식
 
 실제 계산은 다음과 같다.
 
@@ -196,6 +253,86 @@ p_3 = \mathrm{smooth\_p3}(\mathrm{lateral\_c3}(c_3) + U(p_4 \to c_3))
 ```math
 p_2 = \mathrm{smooth\_p2}(\mathrm{lateral\_c2}(c_2) + U(p_3 \to c_2))
 ```
+
+이 식이 의미하는 바를 한 줄씩 풀면 다음과 같다.
+
+### `p5`
+
+```math
+p_5 = smooth_p5(lateral_c5(c5))
+```
+
+- 가장 깊은 feature `c5`를 1×1 conv로 256채널에 맞춘다.
+- 그 결과를 smoothing block으로 정리한다.
+- 아직 더해지는 다른 feature는 없다.
+
+즉 `p5`는 top-down 시작점이다.
+
+### `p4`
+
+```math
+p_4 = smooth_p4(lateral_c4(c4) + U(p_5 \to c_4))
+```
+
+- `c4`를 256채널로 맞춘다.
+- `p5`를 `c4`의 spatial size로 업샘플한다.
+- 둘을 더한다.
+- 마지막으로 smoothing block으로 정리한다.
+
+즉 `p4`는 **`c4`의 비교적 세밀한 정보 + `p5`의 더 강한 semantic 정보**를 합친 결과다.
+
+### `p3`
+
+```math
+p_3 = smooth_p3(lateral_c3(c3) + U(p_4 \to c_3))
+```
+
+- `p4`는 이미 semantic 정보가 내려온 상태다.
+- 여기에 `c3`의 더 높은 해상도 정보를 더한다.
+- 다시 smoothing으로 정리한다.
+
+### `p2`
+
+```math
+p_2 = smooth_p2(lateral_c2(c2) + U(p_3 \to c_2))
+```
+
+- 가장 해상도가 높은 `c2`에
+- 위에서 계속 내려온 semantic 정보를 더한다.
+- 정리한 결과가 `p2`다.
+
+결국 `p2`는 **고해상도 detail + 상위 semantic 정보**를 동시에 가진 feature가 된다.
+
+## 2.4 `U(p5 → c4)`는 정확히 뭔가
+
+```math
+U(p_5 \to c_4)
+```
+
+는 “`p5`를 `c4`와 같은 spatial size로 bilinear upsampling 하라”는 뜻이다.
+
+예를 들면:
+
+- `p5`: `H/32 × W/32`
+- `c4`: `H/16 × W/16`
+
+이라면 `p5`를 2배 업샘플해서 `c4`와 같은 해상도로 만든 뒤 더한다.
+
+즉 여기서 `→ c4`는 “값을 `c4`로 보낸다”는 뜻이 아니라, **해상도를 `c4` 기준으로 맞춘다**는 뜻이다.
+
+## 2.5 왜 `p1`은 없는가
+
+이 구조에는 `p1`이 없다.
+
+이유는 backbone이 실질적으로 사용하는 FPN 입력 stage가 `c2, c3, c4, c5`부터 시작하기 때문이다.
+
+- `c2`: `H/4`
+- `c3`: `H/8`
+- `c4`: `H/16`
+- `c5`: `H/32`
+
+보통 ResNet에서는 `conv1` 직후가 `H/2` 수준 feature인데, 그 단계는 너무 low-level해서 semantic 정보가 약하고 noise가 많다.  
+이 모델은 segmentation과 boundary reasoning의 기준 해상도를 `p2 = H/4`에 두고 있으므로 `p1`까지 만들지 않는다.
 
 최종 출력은 `(p2,p3,p4,p5)`이고, 네 level 모두 256채널이다.
 
@@ -222,7 +359,7 @@ Branch A의 역할은 다음과 같다.
 (p_2,p_3,p_4,p_5)
 ```
 
-## 3.2 Branch A의 핵심 feature `f_A`
+## 3.2 Branch A의 핵심 feature `f_A`: `pyramid_fuse`
 
 먼저 `p3, p4, p5`를 모두 `p2` 해상도로 올린다.
 
@@ -250,6 +387,50 @@ shape:
 ```math
 f_A \in \mathbb{R}^{B \times 256 \times H/4 \times W/4}
 ```
+
+### `pyramid_fuse`가 정확히 무엇인가
+
+`pyramid_fuse`는 **여러 scale의 FPN feature를 하나의 고해상도 feature로 통합하는 블록**이다.
+
+직관적으로 보면:
+
+- `p5`: 가장 강한 semantic 정보
+- `p4`: 중간 구조 정보
+- `p3`: 더 세밀한 구조 정보
+- `p2`: 가장 높은 해상도의 spatial detail
+
+이 네 개를 한 곳에 모아, Branch A가 실제로 사용 가능한 단일 feature `f_A`로 만드는 것이 `pyramid_fuse`다.
+
+### 왜 `ConvBNReLU(1024 → 256)`이 되는가
+
+혼동하기 쉬운 지점은 “각 `p2, p3, p4, p5`가 이미 256채널인데 왜 갑자기 1024가 나오느냐”는 것이다.
+
+답은 **concat** 때문이다.
+
+각 feature는 모두 256채널이지만, concat은 더하는 것이 아니라 채널 방향으로 붙이는 것이다.
+
+```math
+[p_2,\tilde p_3,\tilde p_4,\tilde p_5]
+\in
+\mathbb{R}^{B \times (256+256+256+256) \times H/4 \times W/4}
+=
+\mathbb{R}^{B \times 1024 \times H/4 \times W/4}
+```
+
+따라서 첫 번째 conv의 입력 채널 수가 1024가 된다.
+
+### 여기서 `1024`는 무엇의 차원인가
+
+`1024`는 전체 텐서의 “모든 차원 수”를 뜻하는 것이 아니다.  
+정확히는 **채널 차원(channel dimension)**이다.
+
+즉 feature tensor가 `(B, C, H, W)` 형태일 때:
+
+- `B`: batch
+- `C = 1024`: 각 spatial 위치가 가지는 feature vector 길이
+- `H/4, W/4`: spatial size
+
+따라서 각 픽셀 위치마다 `1024`차원 feature vector가 있고, 그걸 conv로 다시 `256`차원으로 압축한다고 이해하면 된다.
 
 ## 3.3 Coarse Head
 
@@ -323,6 +504,29 @@ z_{\mathrm{bp}} = \mathrm{Conv2d}_{256\to1}(\mathrm{ConvBNReLU}_{256\to256}(f_A)
 b = \sigma(z_{\mathrm{bp}})
 ```
 
+### 왜 `b = σ(z_bp)`를 구하는가
+
+`z_bp`는 logits다.  
+즉 값의 범위가 `(-∞, +∞)`이며, 바로 “경계 확률”로 해석하기 어렵다.
+
+따라서 sigmoid를 적용해서:
+
+```math
+b = \sigma(z_{\mathrm{bp}}) \in [0,1]
+```
+
+를 만든다.
+
+이 `b`는 **각 픽셀이 경계일 가능성**을 나타내는 map이다.
+
+그리고 이 map은 단순 시각화용이 아니라 실제로 downstream에서 쓰인다.
+
+- Branch B의 ROI gating 입력으로 들어간다.
+- boundary-related prior로 사용된다.
+- objectness, uncertainty와 함께 “어디를 더 집중해서 볼지”를 정하는 신호가 된다.
+
+즉 `b = σ(z_bp)`는 **boundary prior를 확률 map 형태로 만든 것**이며, Branch B가 경계 reasoning을 시작할 위치를 잡는 데 중요한 역할을 한다.
+
 ## 3.7 Uncertainty는 별도 head가 아니다
 
 현재 uncertainty를 위한 `Conv2d` head는 없다.
@@ -332,6 +536,31 @@ u = \mathrm{sigmoid\_entropy\_from\_logits}(z_{\mathrm{fine}})
 ```
 
 즉 uncertainty는 **fine logits에서 파생**된다.
+
+### uncertainty는 무엇인가
+
+uncertainty는 “이 픽셀의 segmentation 결과가 얼마나 애매한가”를 나타낸다.
+
+- foreground일 확률이 0에 가까우면: background라고 확신
+- foreground일 확률이 1에 가까우면: object라고 확신
+- foreground일 확률이 0.5에 가까우면: 애매함
+
+따라서 entropy가 클수록 uncertainty도 크다.
+
+### uncertainty는 왜 필요한가
+
+uncertainty는 Branch A가 “여기 자신 없다”라고 표시하는 신호다.
+
+이 신호는 downstream에서 두 군데서 중요하다.
+
+1. **ROI gating 입력**
+   - `o*`, `u*`, `b*`를 함께 본다.
+   - 즉 물체 같고, 경계 같고, 동시에 애매한 부분을 더 주의 깊게 보게 된다.
+
+2. **Fusion gate 입력**
+   - uncertainty가 큰 부분에서는 Branch B correction을 더 강하게 주입할 여지가 생긴다.
+
+즉 uncertainty는 단순 부가 정보가 아니라, **어디를 추가 보정할지 알려주는 신호**다.
 
 ## 3.8 Branch A 전체 출력
 
@@ -436,6 +665,11 @@ b^\* = \alpha_b b
 
 이다.
 
+이 말은 각 `α`가 **0 또는 1 중 하나만 갖는 binary switch**라는 뜻이다.
+
+- `α = 1`: 해당 signal을 그대로 사용
+- `α = 0`: 해당 signal을 downstream에서 0으로 막음
+
 즉,
 
 - objectness ablation: `α_o = 0`
@@ -447,6 +681,8 @@ b^\* = \alpha_b b
 - raw signal `o,u,b`는 계속 계산된다.
 - Branch A head도 계속 학습된다.
 - 단지 Branch B/Fusion이 실제로 쓰는 used signal만 0이 된다.
+
+즉 이 `α`들은 학습되는 연속 파라미터가 아니라, **실험용 on/off 스위치**다.
 
 이 구조는 다음 두 질문을 분리해서 볼 수 있게 해 준다.
 
@@ -528,6 +764,9 @@ ROI gating은 `SoftROIGating`이 담당한다.
 r = \sigma(\mathrm{Conv2d}_{64\to1}(\mathrm{ConvBNReLU}_{64\to64}(\mathrm{ConvBNReLU}_{3\to64}([o^\*,u^\*,b^\*]))))
 ```
 
+이 `r`은 hard mask가 아니라 **soft ROI mask**다.  
+즉 “여기를 집중해서 보라”는 가중치 map이다.
+
 ## 6.4 ROI로 Feature 강조
 
 Branch B feature는 ROI mask로 강조된다.
@@ -537,6 +776,8 @@ f_B = f_0 \odot (1 + r)
 ```
 
 즉 ROI가 큰 위치는 feature magnitude가 더 커진다.
+
+이 수식은 `f_0 ⊙ r`처럼 ROI 밖을 완전히 지우는 것이 아니라, **원래 feature를 유지한 채 ROI 내부를 더 강조**하는 형태다.
 
 ## 6.5 Boundary Candidate Head
 
@@ -1218,7 +1459,90 @@ o^\* = o,\qquad u^\* = u,\qquad b^\* = 0
 
 ---
 
-# 13. 최종 핵심 요약
+# 13. 자주 헷갈리는 포인트만 다시 압축 정리
+
+## 13.1 lateral projection
+
+```text
+backbone의 서로 다른 채널 수를 FPN 공통 채널 수(256)로 맞추는 1×1 conv
+```
+
+## 13.2 smoothing block
+
+```text
+top-down + lateral로 합쳐진 feature를 3×3 conv로 정리하는 단계
+```
+
+## 13.3 FPN 식의 핵심 의미
+
+```text
+위에서 내려온 semantic feature를 업샘플해서,
+각 단계의 backbone feature와 더해 가며,
+고해상도이면서 semantic 정보도 있는 feature를 만든다.
+```
+
+## 13.4 p1이 없는 이유
+
+```text
+이 모델은 H/4 해상도의 p2를 최저 level로 쓰며,
+H/2 수준의 p1은 semantic이 약하고 noise가 많아서 쓰지 않는다.
+```
+
+## 13.5 pyramid_fuse
+
+```text
+p2, p3, p4, p5를 모두 p2 해상도로 맞춘 뒤 concat하고 conv로 섞어서
+하나의 Branch A 핵심 feature f_A를 만드는 블록
+```
+
+## 13.6 왜 1024 → 256인가
+
+```text
+각 feature는 256채널이지만, 4개를 concat하면 256×4 = 1024채널이 되기 때문이다.
+```
+
+## 13.7 여기서 1024는 무슨 차원인가
+
+```text
+전체 텐서 차원이 아니라 채널 차원(channel dimension)이다.
+각 spatial 위치마다 1024차원 feature vector가 있다는 뜻이다.
+```
+
+## 13.8 왜 b = σ(z_bp)를 구하는가
+
+```text
+boundary prior logits를 0~1 범위의 경계 확률 map으로 바꿔
+Branch B가 경계 중심 ROI를 잡을 수 있게 하기 위해서다.
+```
+
+## 13.9 uncertainty는 무엇인가
+
+```text
+fine segmentation 결과가 얼마나 애매한지 나타내는 entropy-based map이다.
+```
+
+## 13.10 sigmoid_entropy_from_logits는 무엇인가
+
+```text
+segmentation logits를 sigmoid로 확률로 바꾸고,
+그 확률의 entropy를 계산해서 uncertainty map을 만드는 함수다.
+```
+
+## 13.11 entropy 식의 p는 무엇인가
+
+```text
+각 픽셀이 foreground일 확률이다.
+```
+
+## 13.12 α_o, α_u, α_b ∈ {0,1}의 의미
+
+```text
+각 signal을 downstream에서 쓸지(1) 말지(0) 결정하는 binary ablation switch다.
+```
+
+---
+
+# 14. 최종 핵심 요약
 
 이 모델의 핵심은 다음 한 문장으로 정리할 수 있다.
 
@@ -1253,7 +1577,7 @@ z_{\mathrm{final}}
 
 ---
 
-# 14. 아주 짧은 초압축 버전
+# 15. 아주 짧은 초압축 버전
 
 ## Branch A
 
